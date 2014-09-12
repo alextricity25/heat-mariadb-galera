@@ -273,7 +273,7 @@ resources:
               - first_address
           minion-config:
             get_resource: config-salt-minion
-     minion-roles: "web"
+          minion-roles: "web"
 
   minion-haproxy:
     type: OS::Nova::Server
