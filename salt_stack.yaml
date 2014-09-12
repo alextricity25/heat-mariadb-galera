@@ -371,9 +371,8 @@ resources:
       
     depends_on:
       - get_resource: deploy-salt-master
-      - get_attr:
-        - minion-group-web
-        - minion-deployment
+      - get_resource: deploy-db
+      - get_resource: deploy-haproxy
 
 outputs:
   master-ip:

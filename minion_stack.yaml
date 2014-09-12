@@ -70,9 +70,6 @@ resources:
       user_data_format: SOFTWARE_CONFIG
 
 outputs:
-  minion-deployment:
-    value:
-      get_resource: deploy-salt-minion
   minion-ip:
     value:
       get_attr:
