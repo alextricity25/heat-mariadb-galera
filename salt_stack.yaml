@@ -227,11 +227,11 @@ resources:
                   user: drupal-stack
                   password: $pw
                   host: "'%'"
-              params:
-                $pw:
-                  get_attr:
-                    - secret
-                    - value
+            params:
+              $pw:
+                get_attr:
+                  - secret
+                  - value
 
       networks:
         - port:
