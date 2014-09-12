@@ -23,6 +23,13 @@ parameters:
     label: Number of salt minions
 
 resources:
+  secret:
+    type: OS::Heat::RandomString
+    properties:
+      length: 32
+      character_classes:
+        - class: lettersdigits
+
   coms:
     type: OS::Nova::KeyPair
     properties:
@@ -70,7 +77,7 @@ resources:
       network_id: 
         get_resource: net
 
-  salt-master-config:
+  config-salt-master:
     type: OS::Heat::SoftwareConfig
     properties:
       group: script
@@ -80,6 +87,7 @@ resources:
       config: |
         #!/bin/bash
         chmod 0700 /root/.ssh/coms_rsa
+        chmod 0600 /srv/pillar/drupal.sls
 
         # Add coms from minions to master
         echo "$public_key" >> /root/.ssh/authorized_keys
@@ -105,7 +113,7 @@ resources:
         # Finally - Restart salt service
         service salt-master restart
 
-  salt-minion-config:
+  config-salt-minion:
     type: OS::Heat::SoftwareConfig
     properties:
       group: script
@@ -154,10 +162,11 @@ resources:
             - coms
             - public_key
         state_repos: |
-          https://github.com/absalon-james/velopyraptor.git
-          https://github.com/absalon-james/gerrit-python-tools.git
+          https://github.com/absalon-james/mysql.git
+          https://github.com/absalon-james/sync.git
+          https://github.com/absalon-james/drupal.git
       config:
-        get_resource: salt-master-config
+        get_resource: config-salt-master
       server:
         get_resource: master
 
@@ -176,6 +185,54 @@ resources:
           get_attr:
             - coms
             - private_key
+
+        /srv/salt/top.sls: |
+          base:
+            'roles:db':
+              - match: grain
+              - drupal.db
+            'roles:web':
+              - match: grain
+              - drupal.web
+              - sync
+            'roles:haproxy':
+              - match: grain
+              - drupal.haproxy
+
+        /srv/pillar/top.sls: |
+          base:
+            '*':
+              - app
+            'roles:web':
+              - match: grain
+              - drupal
+            'roles:db':
+              - match: grain
+              - db
+              - drupal
+        /srv/pillar/app.sls: |
+          interfaces:
+            private: eth0
+            public: eth0
+          mine_functions:
+            network.ip_addrs: [eth2]
+            network.interfaces: []
+          mine_interval: 1
+
+        /srv/pillar/drupal.sls:
+          str_replace:
+            template: |
+              drupal:
+                db:
+                  user: drupal-stack
+                  password: $pw
+                  host: "'%'"
+              params:
+                $pw:
+                  get_attr:
+                    - secret
+                    - value
+
       networks:
         - port:
             get_resource: master-port
@@ -189,7 +246,7 @@ resources:
       port_id:
         get_resource: master-port
 
-  minion-group:
+  minion-group-web:
     type: OS::Heat::ResourceGroup
     properties:
       count:
@@ -215,8 +272,106 @@ resources:
               - master
               - first_address
           minion-config:
-            get_resource: salt-minion-config
-          minion-roles: "database,memcached,webserver"
+            get_resource: config-salt-minion
+     minion-roles: "web"
+
+  minion-haproxy:
+    type: OS::Nova::Server
+    properties:
+      image:
+        get_param: image
+      flavor: m1.small
+      personality: 
+        /root/.ssh/coms_rsa:
+          get_attr:
+            - coms
+            - private_key
+        /etc/salt/grains: |
+          roles:
+            - haproxy
+      networks:
+        - network:
+            get_resource: net
+      user_data_format: SOFTWARE_CONFIG
+
+  deploy-haproxy:
+    type: OS::Heat::SoftwareDeployment
+    properties:
+      input_values:
+        public_key:
+          get_attr:
+            - coms
+            - public_key
+        master:
+          get_attr:
+            - master
+            - first_address
+      config:
+        get_resource: config-salt-minion
+      server:
+        get_resource: minion-haproxy
+    depends_on:
+      - get_resource: deploy-salt-master
+ 
+  minion-db:
+    type: OS::Nova::Server
+    properties:
+      image:
+        get_param: image
+      flavor: m1.small
+      personality: 
+        /root/.ssh/coms_rsa:
+          get_attr:
+            - coms
+            - private_key
+        /etc/salt/grains: |
+          roles:
+            - db
+      networks:
+        - network:
+            get_resource: net
+      user_data_format: SOFTWARE_CONFIG
+
+  deploy-db:
+    type: OS::Heat::SoftwareDeployment
+    properties:
+      input_values:
+        public_key:
+          get_attr:
+            - coms
+            - public_key
+        master:
+          get_attr:
+            - master
+            - first_address
+      config:
+        get_resource: config-salt-minion
+      server:
+        get_resource: minion-db
+    depends_on:
+      - get_resource: deploy-salt-master
+
+  config-deploy:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config: |
+        #!/bin/bash
+        salt '*' saltutil.refresh_pillar
+        salt '*' mine.update
+        salt '*' state.highstate
+
+  deploy:
+    type: OS::Heat::SoftwareDeployment
+    properties:
+      config:
+        get_resource: config-deploy
+      server:
+        get_resource: master
+      
+    depends_on:
+      - get_resource: deploy-salt-master
+      - get_resource: minion-group-web
 
 outputs:
   master-ip:
