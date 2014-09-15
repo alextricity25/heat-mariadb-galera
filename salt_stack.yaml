@@ -208,14 +208,13 @@ resources:
               - drupal
             'roles:db':
               - match: grain
-              - db
               - drupal
         /srv/pillar/app.sls: |
           interfaces:
             private: eth0
             public: eth0
           mine_functions:
-            network.ip_addrs: [eth2]
+            network.ip_addrs: [eth0]
             network.interfaces: []
           mine_interval: 1
 
@@ -248,6 +247,7 @@ resources:
 
   minion-group-web:
     type: OS::Heat::ResourceGroup
+    depends_on: deploy-salt-master
     properties:
       count:
         get_param: minion-count
@@ -275,8 +275,21 @@ resources:
             get_resource: config-salt-minion
           minion-roles: "web"
 
+  minion-haproxy-ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: 
+        get_param: floating-network
+
+  minion-haproxy-port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: 
+        get_resource: net
+
   minion-haproxy:
     type: OS::Nova::Server
+    depends_on: interface
     properties:
       image:
         get_param: image
@@ -290,12 +303,21 @@ resources:
           roles:
             - haproxy
       networks:
-        - network:
-            get_resource: net
+        - port:
+            get_resource: minion-haproxy-port
       user_data_format: SOFTWARE_CONFIG
+
+  minion-haproxy-floating-ip-ass: 
+    type: OS::Neutron::FloatingIPAssociation
+    properties: 
+      floatingip_id:
+        get_resource: minion-haproxy-ip
+      port_id:
+        get_resource: minion-haproxy-port
 
   deploy-haproxy:
     type: OS::Heat::SoftwareDeployment
+    depends_on: deploy-salt-master
     properties:
       input_values:
         public_key:
@@ -310,11 +332,10 @@ resources:
         get_resource: config-salt-minion
       server:
         get_resource: minion-haproxy
-    depends_on:
-      - get_resource: deploy-salt-master
  
   minion-db:
     type: OS::Nova::Server
+    depends_on: interface
     properties:
       image:
         get_param: image
@@ -334,6 +355,7 @@ resources:
 
   deploy-db:
     type: OS::Heat::SoftwareDeployment
+    depends_on: deploy-salt-master
     properties:
       input_values:
         public_key:
@@ -348,8 +370,6 @@ resources:
         get_resource: config-salt-minion
       server:
         get_resource: minion-db
-    depends_on:
-      - get_resource: deploy-salt-master
 
   config-deploy:
     type: OS::Heat::SoftwareConfig
@@ -368,11 +388,11 @@ resources:
         get_resource: config-deploy
       server:
         get_resource: master
-      
     depends_on:
-      - get_resource: deploy-salt-master
-      - get_resource: deploy-db
-      - get_resource: deploy-haproxy
+      - deploy-salt-master
+      - minion-group-web
+      - deploy-db
+      - deploy-haproxy
 
 outputs:
   master-ip:
@@ -393,15 +413,15 @@ outputs:
   minion-ip:
     value:
       get_attr:
-        - minion-group
+        - minion-group-web
         - minion-ip
   minion-stdout:
     value:
       get_attr:
-        - minion-group
+        - minion-group-web
         - minion-stdout
   minion-stderr:
     value:
       get_attr:
-        - minion-group
+        - minion-group-web
         - minion-stderr
