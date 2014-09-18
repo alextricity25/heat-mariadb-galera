@@ -1,35 +1,54 @@
 heat_template_version: 2013-05-23
 
-description: Deploys a salt master
+description: |
+  Deploys a salt-master and a number of salt-minions.
+  One minion will be an haproxy node.
+  One minion will be a database node.
+  A variable number of minions will be web nodes each with
+  apache2, php5, drupal, memcached, php-apc, lsyncd, csync2, and xinetd.
+  Floating ips will be assigned to the salt-master and haproxy nodes.
 
 parameters:
+
   keyname:
     type: string
-    description: Key name for loggin in to instances
+    label: Salt-Master Keyname.
+    description: The name of the key that should be used to ssh into the Salt-Master.
+
   image:
     type: string
-    description: Image name
-  floating-network:
+    label: Image Name
+    description: Name of the existing image to use for every vm spun up by this stack. The image should have heat-config and heat-config-script baked in.
+
+  floating-network-id:
     type: string
-    description: Network to allocate floating IP from. 
+    label: External Network UUID
+    description: UUID of the external network. The private network created by this stack will route to this network. Also, any floating ip's needed by this stack will come this network.
+
   coms-key-name:
     type: string
     default: coms
-    label: Stack communication key name
-    description: Name of the keypair that will be created for node-to-node communication within the stack.
+    label: Stack Keyname
+    description: Unique name of the keypair for node to node communications within the stack.
+
   minion-count:
     type: number
     default: 2
-    label: Number of salt minions
+    label: Number of web servers.
+    description: The number of web application servers.
 
 resources:
+
+  # Will be used to generate a random password
+  # 32 characters long consisting of alpha numeric characters
   secret:
     type: OS::Heat::RandomString
     properties:
       length: 32
-      character_classes:
-        - class: lettersdigits
+      sequence: lettersdigits
 
+  # Keypair for communicating between nodes within the stack.
+  # Will allow minions to ssh into the master and vice versa.
   coms:
     type: OS::Nova::KeyPair
     properties:
@@ -37,26 +56,30 @@ resources:
         get_param: coms-key-name
       save_private_key: true 
 
+  # Private network for this stack
   net:
     type: OS::Neutron::Net
 
+  # Private subnet for this stack
   subnet:
     type: OS::Neutron::Subnet
     properties:
-      network:
+      network_id:
         get_resource: net
       cidr: 10.10.10.0/24
       dns_nameservers:
         - 8.8.8.8
         - 4.2.2.2
 
+  # Routes the private network to the external network.
   router:
     type: OS::Neutron::Router
     properties:
       external_gateway_info:
         network: 
-          get_param: floating-network
+          get_param: floating-network-id
 
+  # Router interface
   interface:
     type: OS::Neutron::RouterInterface
     properties:
@@ -65,18 +88,23 @@ resources:
       subnet_id: 
         get_resource: subnet
 
+  # One floating ip for the salt-master node
   master-ip:
     type: OS::Neutron::FloatingIP
     properties:
-      floating_network: 
-        get_param: floating-network
+      floating_network_id: 
+        get_param: floating-network-id
 
+  # One port for the salt-master node
   master-port:
     type: OS::Neutron::Port
     properties:
       network_id: 
         get_resource: net
 
+  # Software configuration script for the salt-master node
+  # Installs salt-master, sets permission on some personality files
+  # and uses git to clone any provided state/formula repos
   config-salt-master:
     type: OS::Heat::SoftwareConfig
     properties:
@@ -113,6 +141,9 @@ resources:
         # Finally - Restart salt service
         service salt-master restart
 
+  # Software configuration for salt minion
+  # Installs salt-minion, sets up authentication from minion to master,
+  # and sets permissions of any personality files.
   config-salt-minion:
     type: OS::Heat::SoftwareConfig
     properties:
@@ -153,6 +184,9 @@ resources:
         rm /root/minion_key
         rm /root/.ssh/coms_rsa
 
+  # Software deployment for salt-master. Deploys the salt-master softrware
+  # configuration.
+  # Also lists the git repos necessary to make the drupal stack work.
   deploy-salt-master:
     type: OS::Heat::SoftwareDeployment
     properties:
@@ -170,6 +204,8 @@ resources:
       server:
         get_resource: master
 
+  # The salt master instance
+  # Should have one floating ip
   master:
     type: OS::Nova::Server
     depends_on: interface
@@ -181,11 +217,15 @@ resources:
       flavor: m1.small
       name: master
       personality:
+
+        # Private key for ssh'ing into minions
         /root/.ssh/coms_rsa:
           get_attr:
             - coms
             - private_key
 
+        # The top.sls file for salt states.
+        # Dictates which minions get which formulas
         /srv/salt/top.sls: |
           base:
             'roles:db':
@@ -199,6 +239,8 @@ resources:
               - match: grain
               - drupal.haproxy
 
+        # The top.sls file for salt pillars.
+        # Dictates which minions get which pillars.
         /srv/pillar/top.sls: |
           base:
             '*':
@@ -209,6 +251,8 @@ resources:
             'roles:db':
               - match: grain
               - drupal
+
+        # The app pillar. Describe interfaces and salt-mine functions.
         /srv/pillar/app.sls: |
           interfaces:
             private: eth0
@@ -218,6 +262,9 @@ resources:
             network.interfaces: []
           mine_interval: 1
 
+        # The drupal.sls pillar. Describe database account info for drupal
+        # This file should have its permissions changed during software
+        # Configuration
         /srv/pillar/drupal.sls:
           str_replace:
             template: |
@@ -232,11 +279,15 @@ resources:
                   - secret
                   - value
 
+      # Get access from the master-port
       networks:
         - port:
             get_resource: master-port
+
+      # Using SoftwareConfigs - This needs to be set to SOFTWARE_CONFIG
       user_data_format: SOFTWARE_CONFIG
 
+  # Associate the master floating ip to the master port
   master-floating-ip-ass: 
     type: OS::Neutron::FloatingIPAssociation
     properties: 
@@ -245,6 +296,10 @@ resources:
       port_id:
         get_resource: master-port
 
+  # Deploys a group of (vms + software deployment).
+  # This group the varying number of web servers.
+  # Each instance in this group will be an instance with salt-minion
+  # installed and will have the salt role of 'web'
   minion-group-web:
     type: OS::Heat::ResourceGroup
     depends_on: deploy-salt-master
@@ -275,38 +330,49 @@ resources:
             get_resource: config-salt-minion
           minion-roles: "web"
 
+  # Floating ip for haproxy node
   minion-haproxy-ip:
     type: OS::Neutron::FloatingIP
     properties:
-      floating_network: 
-        get_param: floating-network
+      floating_network_id: 
+        get_param: floating-network-id
 
+  # Port for haproxy node
   minion-haproxy-port:
     type: OS::Neutron::Port
     properties:
       network_id: 
         get_resource: net
 
+  # haproxy minion
   minion-haproxy:
     type: OS::Nova::Server
     depends_on: interface
     properties:
+      flavor: m1.small
       image:
         get_param: image
-      flavor: m1.small
-      personality: 
+      personality:
+
+        # Private key for node to node communication
         /root/.ssh/coms_rsa:
           get_attr:
             - coms
             - private_key
+
+        # Set the salt role to haproxy
         /etc/salt/grains: |
           roles:
             - haproxy
+      
       networks:
         - port:
             get_resource: minion-haproxy-port
+
+      # Needs to be SOFTWARE_CONFIG when using SoftwareConfigs
       user_data_format: SOFTWARE_CONFIG
 
+  # Associate haproxy floating ip to the port
   minion-haproxy-floating-ip-ass: 
     type: OS::Neutron::FloatingIPAssociation
     properties: 
@@ -315,6 +381,7 @@ resources:
       port_id:
         get_resource: minion-haproxy-port
 
+  # Deploys the salt-minion software config to the haproxy node.
   deploy-haproxy:
     type: OS::Heat::SoftwareDeployment
     depends_on: deploy-salt-master
@@ -332,7 +399,8 @@ resources:
         get_resource: config-salt-minion
       server:
         get_resource: minion-haproxy
- 
+
+  # The database instance of this stack 
   minion-db:
     type: OS::Nova::Server
     depends_on: interface
@@ -340,19 +408,27 @@ resources:
       image:
         get_param: image
       flavor: m1.small
-      personality: 
+      personality:
+
+        # Private key for node to node communications
         /root/.ssh/coms_rsa:
           get_attr:
             - coms
             - private_key
+
+        # Set the salt-grain roles to ['db']
         /etc/salt/grains: |
           roles:
             - db
+
       networks:
         - network:
             get_resource: net
+
+      # This needs to be set to SOFTWARE_CONFIG when using SoftwareConfigs
       user_data_format: SOFTWARE_CONFIG
 
+  # Deploys the salt-minion software to the database minion
   deploy-db:
     type: OS::Heat::SoftwareDeployment
     depends_on: deploy-salt-master
@@ -371,6 +447,8 @@ resources:
       server:
         get_resource: minion-db
 
+  # SoftwareConfig that is to run on master.
+  # Executes a salt state.highstate on all attached minions.
   config-deploy:
     type: OS::Heat::SoftwareConfig
     properties:
@@ -381,6 +459,9 @@ resources:
         salt '*' mine.update
         salt '*' state.highstate
 
+  # Deploys the the deploy softwareconfig
+  # All minions should be spun up and running salt-minion
+  # before executing this deployment.
   deploy:
     type: OS::Heat::SoftwareDeployment
     properties:
@@ -400,28 +481,55 @@ outputs:
       get_attr:
         - master-ip
         - floating_ip_address
-  master-stdout:
-    value:
-      get_attr:
-       - deploy-salt-master
-       - deploy_stdout
-  master-stderr:
-    value:
-      get_attr:
-        - deploy-salt-master
-        - deploy_stderr
-  minion-ip:
+  
+  minion-web-ips:
     value:
       get_attr:
         - minion-group-web
         - minion-ip
-  minion-stdout:
+
+  minion-haproxy-ip:
     value:
       get_attr:
-        - minion-group-web
-        - minion-stdout
-  minion-stderr:
+        - minion-haproxy
+        - floatng_ip_address
+
+  minion-db-ip:
     value:
       get_attr:
-        - minion-group-web
-        - minion-stderr
+        - minion-db
+        - first_address
+
+  finish-drupal-url:
+    value:
+      str_replace:
+        template: http://$haproxyip/install.php
+        params:
+          $haproxyip:
+            get_attr:
+              - minion-haproxy
+              - floating_ip_address
+        
+
+  # Uncomment the stdout's and stderr's if problems are occuring.
+  #master-stdout:
+  #  value:
+  #    get_attr:
+  #     - deploy-salt-master
+  #     - deploy_stdout
+  #master-stderr:
+  #  value:
+  #    get_attr:
+  #      - deploy-salt-master
+  #      - deploy_stderr
+
+  #minion-web-stdout:
+  #  value:
+  #    get_attr:
+  #      - minion-group-web
+  #      - minion-stdout
+  #minion-web-stderr:
+  #  value:
+  #    get_attr:
+  #      - minion-group-web
+  #      - minion-stderr
