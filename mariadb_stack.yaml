@@ -214,7 +214,7 @@ resources:
       image: 
         get_param: image
       flavor: m1.small
-      name: master
+      #name: master
       personality:
 
         # Private key for ssh'ing into minions
@@ -223,8 +223,8 @@ resources:
             - coms
             - private_key
 
-        # The top.sls file for salt states.
-        # Dictates which minions get which formulas
+        The top.sls file for salt states.
+        Dictates which minions get which formulas
         /srv/salt/top.sls: |
           base:
             '*':
@@ -241,8 +241,8 @@ resources:
               - galera
               - xtrabackup
 
-        # The top.sls file for salt pillars
-        # Dictates which minions get which pillars.
+        The top.sls file for salt pillars
+        Dictates which minions get which pillars.
         /srv/pillar/top.sls: |
           base:
             'roles:haproxy':
@@ -257,7 +257,7 @@ resources:
               - mysql
               - galera
               
-        # The galera pillar. Contains Some basic information for mariadb/galera config and installation
+        The galera pillar. Contains Some basic information for mariadb/galera config and installation
         /srv/pillar/galera/init.sls: |
           interfaces:
             private: eth0
@@ -281,7 +281,7 @@ resources:
             keyid: '0xcbcb082a1bb943db'
             file: /etc/apt/sources.list
         
-        /srv/pillar/mysql/init.sls:
+        /srv/pillar/mysql/init.sls: |
           mysql_config:
             dbuser: root
             port: 3306
