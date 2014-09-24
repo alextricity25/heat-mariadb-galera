@@ -354,7 +354,7 @@ resources:
 
   minion-group-db:
     type: OS::Heat::ResourceGroup
-    depends_on: deply-salt-master
+    depends_on: deploy-salt-master
     properties:
       count:
         get_param: minion-count
