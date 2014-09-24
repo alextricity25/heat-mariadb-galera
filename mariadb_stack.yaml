@@ -537,7 +537,7 @@ outputs:
     value:
       get_attr:
         - minion-haproxy
-        - floatng_ip_address
+        - floating_ip_address
 
   minion-db-boostrap-ip:
     value:
