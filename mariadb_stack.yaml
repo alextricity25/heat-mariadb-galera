@@ -280,14 +280,6 @@ resources:
             keyserver: hkp://keyserver.ubuntu.com:80
             keyid: '0xcbcb082a1bb943db'
             file: /etc/apt/sources.list
-
-        /srv/pillar/haproxy/init.sls:
-          interfaces:
-            private: eth0
-            public: eth0 
-          mine_functions:
-            network.ip_addrs: [eth0]
-            network.interfaces: []
         
         /srv/pillar/mysql/init.sls:
           mysql_config:
