@@ -453,8 +453,8 @@ resources:
       server:
         get_resource: minion-haproxy
 
-  # The database instance of this stack 
-  minion-db:
+  # The bootstrap node of the cluster.
+  minion-db-bootstrap:
     type: OS::Nova::Server
     depends_on: interface
     properties:
@@ -472,7 +472,7 @@ resources:
         # Set the salt-grain roles to ['db']
         /etc/salt/grains: |
           roles:
-            - db
+            - db_bootstrap
 
       networks:
         - network:
@@ -481,8 +481,8 @@ resources:
       # This needs to be set to SOFTWARE_CONFIG when using SoftwareConfigs
       user_data_format: SOFTWARE_CONFIG
 
-  # Deploys the salt-minion software to the database minion
-  deploy-db:
+  # Deploys the salt-minion software to the bootstrap node
+  deploy-db-bootstrap:
     type: OS::Heat::SoftwareDeployment
     depends_on: deploy-salt-master
     properties:
@@ -498,7 +498,7 @@ resources:
       config:
         get_resource: config-salt-minion
       server:
-        get_resource: minion-db
+        get_resource: minion-db-bootstrap
 
   # SoftwareConfig that is to run on master.
   # Executes a salt state.highstate on all attached minions.
@@ -510,7 +510,7 @@ resources:
         #!/bin/bash
         salt '*' saltutil.refresh_pillar
         salt '*' mine.update
-        salt '*' state.highstate
+        salt '*' state.sts orchestration.galera_cluster
 
   # Deploys the the deploy softwareconfig
   # All minions should be spun up and running salt-minion
@@ -524,8 +524,8 @@ resources:
         get_resource: master
     depends_on:
       - deploy-salt-master
-      - minion-group-web
-      - deploy-db
+      - minion-group-db
+      - deploy-db-bootstrap
       - deploy-haproxy
 
 outputs:
@@ -535,10 +535,10 @@ outputs:
         - master-ip
         - floating_ip_address
   
-  minion-web-ips:
+  minion-db-ips:
     value:
       get_attr:
-        - minion-group-web
+        - minion-group-db
         - minion-ip
 
   minion-haproxy-ip:
@@ -547,10 +547,10 @@ outputs:
         - minion-haproxy
         - floatng_ip_address
 
-  minion-db-ip:
+  minion-db-boostrap-ip:
     value:
       get_attr:
-        - minion-db
+        - minion-db-bootstrap
         - first_address
 
   finish-drupal-url:
