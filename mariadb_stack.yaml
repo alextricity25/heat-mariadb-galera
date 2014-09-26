@@ -131,7 +131,7 @@ resources:
         echo -e 'file_roots:\n  base:\n    - /srv/salt' >> /etc/salt/master
 
         # Clone state/formula repos in state root directory
-        cd /srv/
+        cd /srv/salt
         while read -r line
         do
             if [ -n "$line" ]; then
@@ -197,7 +197,11 @@ resources:
             - coms
             - public_key
         state_repos: |
-          https://github.com/elextro/mariadb-galera-salt-ubuntu-formula.git
+          https://github.com/elextro/xtrabackup.git
+          https://github.com/elextro/haproxy.git
+          https://github.com/elextro/orchestration.git
+          https://github.com/elextro/common.git
+          https://github.com/elextro/galera.git
       config:
         get_resource: config-salt-master
       server:
