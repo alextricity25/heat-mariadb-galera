@@ -249,9 +249,6 @@ resources:
         #Dictates which minions get which pillars.
         /srv/pillar/top.sls: |
           base:
-            'roles:haproxy':
-              - match: grain
-              - haproxy
             'roles:db_bootstrap': 
               - match: grain
               - mysql
@@ -398,6 +395,8 @@ resources:
     type: OS::Nova::Server
     depends_on: interface
     properties:
+      key_name:
+        get_param: keyname
       flavor: m1.small
       image:
         get_param: image
@@ -537,11 +536,11 @@ outputs:
         - minion-group-db
         - minion-ip
 
-  minion-haproxy-ip:
-    value:
-      get_attr:
-        - minion-haproxy
-        - floating_ip_address
+  # minion-haproxy-ip:
+  #   value:
+  #     get_attr:
+  #       - minion-haproxy
+  #       - floating_ip_address
 
   minion-db-boostrap-ip:
     value:
@@ -549,15 +548,15 @@ outputs:
         - minion-db-bootstrap
         - first_address
 
-  finish-drupal-url:
-    value:
-      str_replace:
-        template: http://$haproxyip/install.php
-        params:
-          $haproxyip:
-            get_attr:
-              - minion-haproxy
-              - floating_ip_address
+  # finish-drupal-url:
+  #   value:
+  #     str_replace:
+  #       template: http://$haproxyip/install.php
+  #       params:
+  #         $haproxyip:
+  #           get_attr:
+  #             - minion-haproxy
+  #             - floating_ip_address
         
 
   # Uncomment the stdout's and stderr's if problems are occuring.
