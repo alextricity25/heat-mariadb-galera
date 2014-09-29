@@ -505,7 +505,7 @@ resources:
         #!/bin/bash
         salt '*' saltutil.refresh_pillar
         salt '*' mine.update
-        salt '*' state.sls orchestration.galera_cluster
+        salt-run state.sls orchestration.galera_cluster
 
   # Deploys the the deploy softwareconfig
   # All minions should be spun up and running salt-minion
