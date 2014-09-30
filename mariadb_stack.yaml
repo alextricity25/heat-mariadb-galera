@@ -301,7 +301,7 @@ resources:
             params:
               $pw:
                 get_attr:
-                  - secrete
+                  - secret
                   - value
               $admin_password:
                 get_attr:
