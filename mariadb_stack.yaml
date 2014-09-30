@@ -204,7 +204,6 @@ resources:
             - public_key
         state_repos: |
           https://github.com/elextro/xtrabackup.git
-          https://github.com/elextro/haproxy.git
           https://github.com/elextro/orchestration.git
           https://github.com/elextro/common.git
           https://github.com/elextro/galera.git
@@ -241,7 +240,7 @@ resources:
               - common
             'roles:haproxy':
               - match: grain
-              - haproxy
+              - galera.haproxy
             'roles:db_bootstrap':
               - match: grain
               - galera
