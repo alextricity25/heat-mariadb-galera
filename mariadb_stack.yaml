@@ -254,12 +254,7 @@ resources:
         #Dictates which minions get which pillars.
         /srv/pillar/top.sls: |
           base:
-            'roles:db_bootstrap': 
-              - match: grain
-              - mysql
-              - galera
-            'roles:db':
-              - match: grain
+            '*':
               - mysql
               - galera
               
