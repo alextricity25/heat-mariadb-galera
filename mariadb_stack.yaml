@@ -44,6 +44,12 @@ resources:
       length: 32
       sequence: lettersdigits
 
+  admin_password:
+    type: OS::Heat::RandomString
+    properties:
+      length: 10
+      sequence: lettersdigits
+
   # Keypair for communicating between nodes within the stack.
   # Will allow minions to ssh into the master and vice versa.
   coms:
@@ -282,17 +288,25 @@ resources:
             keyid: '0xcbcb082a1bb943db'
             file: /etc/apt/sources.list
         
-        /srv/pillar/mysql/init.sls: |
-          mysql_config:
-            dbuser: root
-            port: 3306
-            socket: /var/lib/mysql/mysql.sock
-            datadir: /var/lib/mysql/db_data
-            maintenance_password: areallyhardpassword
-            admin_password: 2YpYP77Au7
-   
-        
-     
+        /srv/pillar/mysql/init.sls:
+          str_replace: 
+            template: |
+              mysql_config:
+                dbuser: root
+                port: 3306
+                socket: /var/lib/mysql/mysql.sock
+                datadir: /var/lib/mysql/db_data
+                maintenance_password: $pw
+                admin_password: $admin_password
+            params:
+              $pw:
+                get_attr:
+                  - secrete
+                  - value
+              $admin_password:
+                get_attr:
+                  - admin_password
+                  - value     
 
       # Get access from the master-port
       networks:
