@@ -32,7 +32,7 @@ parameters:
     type: number
     default: 2
     label: Number of web servers.
-    description: The number of web application servers.
+    description: The number of servers to create in addition to the bootstrap. This number should be even to avoid split-brain.
 
 resources:
 
