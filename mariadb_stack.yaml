@@ -203,7 +203,6 @@ resources:
             - coms
             - public_key
         state_repos: |
-          https://github.com/elextro/xtrabackup.git
           https://github.com/elextro/orchestration.git
           https://github.com/elextro/common.git
           https://github.com/elextro/galera.git
@@ -244,11 +243,9 @@ resources:
             'roles:db_bootstrap':
               - match: grain
               - galera
-              - xtrabackup
             'roles:db':
               - match: grain
               - galera
-              - xtrabackup
 
         #The top.sls file for salt pillars
         #Dictates which minions get which pillars.
@@ -583,11 +580,11 @@ outputs:
   #      - deploy-salt-master
   #      - deploy_stderr
 
-  #minion-web-stdout:
-  #  value:
-  #    get_attr:
-  #      - minion-group-web
-  #      - minion-stdout
+  minion-db-stdout:
+   value:
+     get_attr:
+       - minion-group-db
+       - minion-stdout
   #minion-web-stderr:
   #  value:
   #    get_attr:
