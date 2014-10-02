@@ -281,6 +281,10 @@ resources:
             keyserver: hkp://keyserver.ubuntu.com:80
             keyid: '0xcbcb082a1bb943db'
             file: /etc/apt/sources.list
+          percona_repo:
+            keyserver: keys.gnupg.net
+            keyid: '1C4CBDCDCD2EFD2A'
+            file: /etc/apt/sources.list
         
         /srv/pillar/mysql/init.sls:
           str_replace: 
@@ -544,11 +548,11 @@ outputs:
         - minion-group-db
         - minion-ip
 
-  # minion-haproxy-ip:
-  #   value:
-  #     get_attr:
-  #       - minion-haproxy
-  #       - floating_ip_address
+  minion-haproxy-ip:
+    value:
+      get_attr:
+        - minion-haproxy-ip
+        - floating_ip_address
 
   minion-db-boostrap-ip:
     value:
