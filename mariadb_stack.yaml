@@ -580,11 +580,11 @@ outputs:
   #      - deploy-salt-master
   #      - deploy_stderr
 
-  minion-db-stdout:
-   value:
-     get_attr:
-       - minion-group-db
-       - minion-stdout
+  # minion-db-stdout:
+  #  value:
+  #    get_attr:
+  #      - minion-group-db
+  #      - minion-stdout
   #minion-web-stderr:
   #  value:
   #    get_attr:
