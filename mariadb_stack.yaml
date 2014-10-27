@@ -65,7 +65,6 @@ parameters:
 
   apps-network: 
     type: string
-    default: ""
     label: Network UUID of Apps network
     description: The network UUID of the network your app (Magento, Drupal, etc.) are on. 
 
@@ -142,6 +141,12 @@ resources:
     properties:
       network_id: 
         get_resource: net
+
+  apps-net-port:
+    type: OS::Neutron::Port
+    properties:
+      network_id:
+        get_param: apps-network
 
   # Software configuration script for the salt-master node
   # Installs salt-master, sets permission on some personality files
@@ -424,11 +429,11 @@ resources:
           
 
   # Floating ip for haproxy node
-  minion-haproxy-ip:
-    type: OS::Neutron::FloatingIP
-    properties:
-      floating_network_id: 
-        get_param: floating-network-id
+  # minion-haproxy-ip:
+  #   type: OS::Neutron::FloatingIP
+  #   properties:
+  #     floating_network_id: 
+  #       get_param: floating-network-id
 
   # Port for haproxy node
   minion-haproxy-port:
@@ -463,18 +468,20 @@ resources:
       networks:
         - port:
             get_resource: minion-haproxy-port
+        - port: 
+            get_resource: apps-net-port
 
       # Needs to be SOFTWARE_CONFIG when using SoftwareConfigs
       user_data_format: SOFTWARE_CONFIG
 
   # Associate haproxy floating ip to the port
-  minion-haproxy-floating-ip-ass: 
-    type: OS::Neutron::FloatingIPAssociation
-    properties: 
-      floatingip_id:
-        get_resource: minion-haproxy-ip
-      port_id:
-        get_resource: minion-haproxy-port
+  # minion-haproxy-floating-ip-ass: 
+  #   type: OS::Neutron::FloatingIPAssociation
+  #   properties: 
+  #     floatingip_id:
+  #       get_resource: minion-haproxy-ip
+  #     port_id:
+  #       get_resource: minion-haproxy-port
 
   # Deploys the salt-minion software config to the haproxy node.
   deploy-haproxy:
@@ -582,12 +589,6 @@ outputs:
       get_attr:
         - minion-group-db
         - minion-ip
-
-  minion-haproxy-ip:
-    value:
-      get_attr:
-        - minion-haproxy-ip
-        - floating_ip_address
 
   minion-db-boostrap-ip:
     value:
