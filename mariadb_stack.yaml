@@ -46,20 +46,17 @@ parameters:
 
   db-username:
     type: string
-    default: ""
     label: Username to create on the database
     description: The username that will be created on the galera cluster
 
   db-user-password:
     type: string
-    default: "" 
     hidden: true
     label: Password for the db-username
     description: This is the password for the db-username specified. 
 
   db-remotehost:
     type: string
-    default: ""
     label: Name of the remote hostname
     description: The hostname of the remote host that will have access to the database using the username specified above. 
 
@@ -67,6 +64,11 @@ parameters:
     type: string
     label: Network UUID of Apps network
     description: The network UUID of the network your app (Magento, Drupal, etc.) are on. 
+
+  database:
+    type: string
+    label: Database to create for the app
+    description: The database name that will be created for the app
 
 
 
@@ -331,6 +333,8 @@ resources:
                 name: $user
                 password: $password
                 remotehost: $remotehost
+              database:
+                name: $database
             params: 
               $user:
                 get_param: db-username
@@ -338,6 +342,8 @@ resources:
                 get_param: db-user-password
               $remotehost:
                 get_param: db-remotehost
+              $database:
+                get_param: database
 
         /srv/pillar/mysql/init.sls:
           str_replace: 
