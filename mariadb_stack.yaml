@@ -176,6 +176,7 @@ resources:
         echo "Install Salt Master"
         curl -L http://bootstrap.saltstack.org | sh -s -- -M -N
         mkdir /srv/salt
+        mkdir /srv/salt/orchestration
         mkdir /srv/pillar
         mkdir /srv/pillar/mysql
         mkdir /srv/pillar/galera
@@ -249,8 +250,6 @@ resources:
             - coms
             - public_key
         state_repos: |
-          https://github.com/elextro/orchestration.git
-          https://github.com/elextro/common.git
           https://github.com/elextro/galera.git
       config:
         get_resource: config-salt-master
@@ -279,19 +278,30 @@ resources:
 
         #The top.sls file for salt states.
         #Dictates which minions get which formulas
-        /srv/salt/top.sls: |
-          base:
-            '*':
-              - common
-            'roles:haproxy':
-              - match: grain
-              - galera.haproxy
-            'roles:db_bootstrap':
-              - match: grain
-              - galera
-            'roles:db':
-              - match: grain
-              - galera
+        /srv/salt/orchestration/galera_cluster.sls: |
+          haproxy:
+            salt.state:
+              - tgt: 'roles:haproxy'
+              - tgt_type: grain
+              - sls:
+                - galera.haproxy
+                - galera.mysql
+          bootstrap:
+            salt.state:
+              - tgt: 'roles:db_bootstrap'
+              - tgt_type: grain
+              - sls:
+                - galera
+              - require:
+                - salt: haproxy
+          non-bootstrap:
+            salt.state:
+              - tgt: 'roles:db'
+              - tgt_type: grain
+              - sls:
+                - galera
+              - require:
+                - salt: bootstrap
 
         #The top.sls file for salt pillars
         #Dictates which minions get which pillars.
