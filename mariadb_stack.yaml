@@ -57,6 +57,7 @@ parameters:
 
   db-remotehost:
     type: string
+    default: "0.0.0.0/0"
     label: Name of the remote hostname
     description: The hostname of the remote host that will have access to the database using the username specified above. 
 
@@ -332,7 +333,7 @@ resources:
               user_via_heat: 
                 name: $user
                 password: $password
-                remotehost: $remotehost
+                remotehost: "$remotehost"
               database:
                 name: $database
             params: 
