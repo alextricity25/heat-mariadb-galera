@@ -40,3 +40,15 @@ The heat template takes in several parameters. Below is the description of each.
 4. coms-key-name: Unique name of the keypair for node to node communications within the stack.
 
 5. minion-count: The number of servers to create in addition to the bootstrap. This number should be even to avoid split-brain. The bootstrap node, in addition to the minion-count, will make the cluster size odd. Make sure to only scale this cluster in odd numbers. 
+
+6. db-username: The username that will be created on the cluser. This will typically be the user required for your app to connect to the app database. 
+
+7. db-user-password: The password for the user above. This is a hidden paramter, meaning it will not be displayed by heat after stack creation. 
+
+8. db-remotehost: The host from which the user will connect. Typically the load balancer of the Galera cluster, but defaults to '%'
+
+9. apps-network: The network UUID of the Apps network. 
+
+10. database: The database that will be created for the app 
+
+11. flavor: The size of the database instances. 
