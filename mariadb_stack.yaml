@@ -57,7 +57,7 @@ parameters:
 
   db-remotehost:
     type: string
-    default: "0.0.0.0/0"
+    default: "%"
     label: Name of the remote hostname
     description: The hostname of the remote host that will have access to the database using the username specified above. 
 
