@@ -71,10 +71,24 @@ parameters:
     label: Database to create for the app
     description: The database name that will be created for the app
 
+  flavor: 
+    type: string
+    label: flavor
+    description: Flavor of DB instances
+    default: m1.small
+
 
 
 
 resources:
+
+
+  # Random string to aid in naming things. 
+  stack-string:
+    type: OS::Heat::RandomString
+    properties:
+      length: 6
+      sequence: lettersdigits
 
   # Will be used to generate a random password
   # 32 characters long consisting of alpha numeric characters
@@ -96,7 +110,13 @@ resources:
     type: OS::Nova::KeyPair
     properties:
       name:
-        get_param: coms-key-name
+        str_replace:
+          template: galera-$stackstr-coms
+          params:
+            $stackstr:
+              get_attr:
+                - stack-string
+                - value
       save_private_key: true 
 
   # Private network for this stack
@@ -266,8 +286,16 @@ resources:
         get_param: keyname
       image: 
         get_param: image
-      flavor: m1.small
-      #name: master
+      flavor: 
+        get_param: flavor
+      name:
+        str_replace:
+          template: galera-$stackstr-master
+          params:
+            $stackstr:
+              get_attr:
+                - stack-string
+                - value 
       personality:
 
         # Private key for ssh'ing into minions
@@ -393,40 +421,6 @@ resources:
       port_id:
         get_resource: master-port
 
-  # Deploys a group of (vms + software deployment).
-  # This group the varying number of web servers.
-  # Each instance in this group will be an instance with salt-minion
-  # installed and will have the salt role of 'web'
-#  minion-group-web:
-#    type: OS::Heat::ResourceGroup
-#    depends_on: deploy-salt-master
-#    properties:
-#      count:
-#        get_param: minion-count
-#      resource_def:
-#        type: Salt::Minion
-#        properties:
-#          flavor: m1.small
-#          private_key:
-#            get_attr:
-#              - coms
-#              - private_key
-#          public_key:
-#            get_attr:
-#              - coms
-#              - public_key
-#          image:
-#            get_param: image
-#          network:
-#            get_resource: net
-#          master:
-#            get_attr:
-#              - master
-#              - first_address
-#          minion-config:
-#            get_resource: config-salt-minion
-#          minion-roles: "web"
-
   minion-group-db:
     type: OS::Heat::ResourceGroup
     depends_on: deploy-salt-master
@@ -436,7 +430,16 @@ resources:
       resource_def:
         type: Salt::Minion
         properties:
-          flavor: m1.small
+          flavor:
+            get_param: flavor
+          stack-prefix:
+            str_replace:
+              template: galera-$stackstr-db
+              params: 
+                $stackstr:
+                  get_attr: 
+                    - stack-string
+                    - value
           private_key:
             get_attr:
               - coms
@@ -479,9 +482,18 @@ resources:
     properties:
       key_name:
         get_param: keyname
-      flavor: m1.small
+      flavor:
+        get_param: flavor
       image:
         get_param: image
+      name: 
+        str_replace:
+          template: galera-$stackstr-haproxy
+          params:
+            $stackstr:
+              get_attr:
+                - stack-string
+                - value 
       personality:
 
         # Private key for node to node communication
@@ -539,7 +551,16 @@ resources:
     properties:
       image:
         get_param: image
-      flavor: m1.small
+      flavor:
+        get_param: flavor
+      name: 
+        str_replace:
+          template: galera-$stackstr-db-bootstrap
+          params: 
+            $stackstr:
+              get_attr:
+                - stack-string
+                - value
       personality:
 
         # Private key for node to node communications
