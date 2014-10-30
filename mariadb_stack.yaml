@@ -361,7 +361,7 @@ resources:
               mdb_config:
                 provider: /usr/lib/galera/libgalera_smm.so
               mdb_repo:
-                baseurl: http://mirror.jmu.edu/pub/mariadb/repo/5.5/ubuntu
+                baseurl: http://mirror.jmu.edu/pub/mariadb/repo/10.0/ubuntu
                 keyserver: hkp://keyserver.ubuntu.com:80
                 keyid: '0xcbcb082a1bb943db'
                 file: /etc/apt/sources.list
