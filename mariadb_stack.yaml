@@ -257,6 +257,7 @@ resources:
         service salt-minion restart
         rm /root/minion_key
         rm /root/.ssh/coms_rsa
+        /sbin/ifconfig -a | /usr/bin/awk '/eth.*Ethernet/ {print $1}' | while read E; do /usr/bin/sudo /sbin/dhclient $E; done
 
   # Software deployment for salt-master. Deploys the salt-master softrware
   # configuration.
@@ -646,6 +647,13 @@ outputs:
       get_attr:
         - minion-db-bootstrap
         - first_address
+  haproxy-ip:
+    value:
+      get_attr:
+        - apps-net-port
+        - fixed_ips
+        - 0
+        - ip_address
 
   # finish-drupal-url:
   #   value:
