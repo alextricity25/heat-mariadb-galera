@@ -32,18 +32,6 @@ parameters:
     label: External Network UUID
     description: UUID of the external network. The private network created by this stack will route to this network. Also any floating ip's needed by this stack will come this network.
 
-  coms-key-name:
-    type: string
-    default: coms
-    label: Stack Keyname
-    description: Unique name of the keypair for node to node communications within the stack.
-
-  minion-count:
-    type: number
-    default: 2
-    label: Number of web servers.
-    description: The number of servers to create in addition to the bootstrap. This number should be even to avoid split-brain.
-
   db-username:
     type: string
     label: Username to create on the database
@@ -103,6 +91,37 @@ resources:
     properties:
       length: 10
       sequence: lettersdigits
+
+  #This is the security group for the haproxy node to allow mysql, web, icmp, and  ssh traffic
+  secgroup: 
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name: 
+        str_replace:
+          template: galera-$stackstr-secgroup
+          params:
+            $stackstr:
+              get_attr:
+                - stack-string
+                - value
+      description: Ping, SSH, MySQL, and web traffic is allowed
+      rules:
+      - protocol: icmp
+      - protocol: tcp
+        port_range_min: 22
+        port_range_max: 22
+      - protocol: tcp
+        port_range_min: 3306
+        port_range_max: 3306
+      - protocol: tcp
+        port_range_min: 13306
+        port_range_max: 13306
+      - protocol: tcp
+        port_range_min: 443
+        port_range_max: 443
+      - protocol: tcp
+        port_range_min: 80
+        port_range_max: 80
 
   # Keypair for communicating between nodes within the stack.
   # Will allow minions to ssh into the master and vice versa.
@@ -170,6 +189,8 @@ resources:
     properties:
       network_id:
         get_param: apps-network
+      security_groups: 
+        - {get_resource: secgroup} 
 
   # Software configuration script for the salt-master node
   # Installs salt-master, sets permission on some personality files
@@ -422,44 +443,44 @@ resources:
       port_id:
         get_resource: master-port
 
-  minion-group-db:
-    type: OS::Heat::ResourceGroup
-    depends_on: deploy-salt-master
-    properties:
-      count:
-        get_param: minion-count
-      resource_def:
-        type: Salt::Minion
-        properties:
-          flavor:
-            get_param: flavor
-          stack-prefix:
-            str_replace:
-              template: galera-$stackstr-db
-              params: 
-                $stackstr:
-                  get_attr: 
-                    - stack-string
-                    - value
-          private_key:
-            get_attr:
-              - coms
-              - private_key
-          public_key:
-            get_attr:
-              - coms
-              - public_key
-          image: 
-            get_param: image
-          network: 
-            get_resource: net
-          master: 
-            get_attr:
-              - master
-              - first_address
-          minion-config:
-            get_resource: config-salt-minion
-          minion-roles: "db"
+  # minion-group-db:
+  #   type: OS::Heat::ResourceGroup
+  #   depends_on: deploy-salt-master
+  #   properties:
+  #     count:
+  #       get_param: minion-count
+  #     resource_def:
+  #       type: Salt::Minion
+  #       properties:
+  #         flavor:
+  #           get_param: flavor
+  #         stack-prefix:
+  #           str_replace:
+  #             template: galera-$stackstr-db
+  #             params: 
+  #               $stackstr:
+  #                 get_attr: 
+  #                   - stack-string
+  #                   - value
+  #         private_key:
+  #           get_attr:
+  #             - coms
+  #             - private_key
+  #         public_key:
+  #           get_attr:
+  #             - coms
+  #             - public_key
+  #         image: 
+  #           get_param: image
+  #         network: 
+  #           get_resource: net
+  #         master: 
+  #           get_attr:
+  #             - master
+  #             - first_address
+  #         minion-config:
+  #           get_resource: config-salt-minion
+  #         minion-roles: "db"
           
 
   # Floating ip for haproxy node
@@ -582,6 +603,85 @@ resources:
       # This needs to be set to SOFTWARE_CONFIG when using SoftwareConfigs
       user_data_format: SOFTWARE_CONFIG
 
+
+  # The db node of the cluster.
+  minion-db2:
+    type: OS::Nova::Server
+    depends_on: interface
+    properties:
+      image:
+        get_param: image
+      flavor:
+        get_param: flavor
+      name: 
+        str_replace:
+          template: galera-$stackstr-db2
+          params: 
+            $stackstr:
+              get_attr:
+                - stack-string
+                - value
+      personality:
+
+        # Private key for node to node communications
+        /root/.ssh/coms_rsa:
+          get_attr:
+            - coms
+            - private_key
+
+        # Set the salt-grain roles to ['db']
+        /etc/salt/grains: |
+          roles:
+            - db
+
+      networks:
+        - network:
+            get_resource: net
+
+      # This needs to be set to SOFTWARE_CONFIG when using SoftwareConfigs
+      user_data_format: SOFTWARE_CONFIG
+
+
+
+  # The db node of the cluster.
+  minion-db3:
+    type: OS::Nova::Server
+    depends_on: interface
+    properties:
+      image:
+        get_param: image
+      flavor:
+        get_param: flavor
+      name: 
+        str_replace:
+          template: galera-$stackstr-db3
+          params: 
+            $stackstr:
+              get_attr:
+                - stack-string
+                - value
+      personality:
+
+        # Private key for node to node communications
+        /root/.ssh/coms_rsa:
+          get_attr:
+            - coms
+            - private_key
+
+        # Set the salt-grain roles to ['db']
+        /etc/salt/grains: |
+          roles:
+            - db
+
+      networks:
+        - network:
+            get_resource: net
+
+      # This needs to be set to SOFTWARE_CONFIG when using SoftwareConfigs
+      user_data_format: SOFTWARE_CONFIG
+
+
+
   # Deploys the salt-minion software to the bootstrap node
   deploy-db-bootstrap:
     type: OS::Heat::SoftwareDeployment
@@ -600,6 +700,42 @@ resources:
         get_resource: config-salt-minion
       server:
         get_resource: minion-db-bootstrap
+
+  deploy-db2:
+    type: OS::Heat::SoftwareDeployment
+    depends_on: deploy-salt-master
+    properties:
+      input_values:
+        public_key:
+          get_attr:
+            - coms
+            - public_key
+        master:
+          get_attr:
+            - master
+            - first_address
+      config:
+        get_resource: config-salt-minion
+      server:
+        get_resource: minion-db2
+
+  deploy-db3:
+    type: OS::Heat::SoftwareDeployment
+    depends_on: deploy-salt-master
+    properties:
+      input_values:
+        public_key:
+          get_attr:
+            - coms
+            - public_key
+        master:
+          get_attr:
+            - master
+            - first_address
+      config:
+        get_resource: config-salt-minion
+      server:
+        get_resource: minion-db3
 
   # SoftwareConfig that is to run on master.
   # Executes a salt state.highstate on all attached minions.
@@ -625,9 +761,10 @@ resources:
         get_resource: master
     depends_on:
       - deploy-salt-master
-      - minion-group-db
       - deploy-db-bootstrap
       - deploy-haproxy
+      - deploy-db2
+      - deploy-db3
 
 outputs:
   master-ip:
@@ -636,17 +773,24 @@ outputs:
         - master-ip
         - floating_ip_address
   
-  minion-db-ips:
-    value:
-      get_attr:
-        - minion-group-db
-        - minion-ip
-
   minion-db-boostrap-ip:
     value:
       get_attr:
         - minion-db-bootstrap
         - first_address
+
+  minion-db2:
+    value:
+      get_attr:
+        - minion-db2
+        - first_address
+
+  minion-db3:
+    value:
+      get_attr:
+        - minion-db3
+        - first_address
+
   haproxy-ip:
     value:
       get_attr:
